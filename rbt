@@ -1,0 +1,683 @@
+# Импортируем модуль для работы с очередью (для обхода в ширину)
+from collections import deque
+
+
+# Класс для представления узла красно-черного дерева (расширенный узел BST с цветом)
+class RBNode:
+    def __init__(self, value, color='RED'):
+        self.value = value      # Значение, хранящееся в узле
+        self.left = None        # Ссылка на левого потомка (меньшие значения)
+        self.right = None       # Ссылка на правого потомка (большие значения)
+        self.color = color      # Цвет узла: 'RED' (красный) или 'BLACK' (черный)
+        self.parent = None      # Ссылка на родительский узел (нужна для балансировки)
+
+
+# Класс для представления красно-черного дерева (самобалансирующееся бинарное дерево поиска)
+class RedBlackTree:
+    def __init__(self):
+        self.root = None        # Корневой узел дерева (изначально дерево пустое)
+        # NIL узел - виртуальный лист (всегда черный)
+        self.NIL = RBNode(None, 'BLACK')
+
+    # Вспомогательный метод для проверки, является ли узел красным
+    def is_red(self, node):
+        # Если узел None или NIL, он считается черным
+        if node is None or node == self.NIL:
+            return False
+        return node.color == 'RED'
+
+    # Вспомогательный метод для проверки, является ли узел черным
+    def is_black(self, node):
+        return not self.is_red(node)
+
+    # Метод для левого поворота (используется при балансировке)
+    def left_rotate(self, x):
+        # x - узел, вокруг которого выполняется поворот
+        y = x.right            # y - правый потомок x (станет новым корнем поддерева)
+        x.right = y.left       # Перемещаем левое поддерево y в правое поддерево x
+        
+        # Обновляем родительские связи
+        if y.left != self.NIL:
+            y.left.parent = x
+        
+        y.parent = x.parent    # Обновляем родителя y
+        
+        # Обновляем связь родителя x с y
+        if x.parent is None:
+            self.root = y      # Если x был корнем, y становится корнем
+        elif x == x.parent.left:
+            x.parent.left = y  # Если x был левым потомком, y становится левым потомком
+        else:
+            x.parent.right = y # Если x был правым потомком, y становится правым потомком
+        
+        y.left = x             # x становится левым потомком y
+        x.parent = y           # Обновляем родителя x
+
+    # Метод для правого поворота (используется при балансировке)
+    def right_rotate(self, y):
+        # y - узел, вокруг которого выполняется поворот
+        x = y.left             # x - левый потомок y (станет новым корнем поддерева)
+        y.left = x.right       # Перемещаем правое поддерево x в левое поддерево y
+        
+        # Обновляем родительские связи
+        if x.right != self.NIL:
+            x.right.parent = y
+        
+        x.parent = y.parent    # Обновляем родителя x
+        
+        # Обновляем связь родителя y с x
+        if y.parent is None:
+            self.root = x      # Если y был корнем, x становится корнем
+        elif y == y.parent.left:
+            y.parent.left = x  # Если y был левым потомком, x становится левым потомком
+        else:
+            y.parent.right = x # Если y был правым потомком, x становится правым потомком
+        
+        x.right = y            # y становится правым потомком x
+        y.parent = x           # Обновляем родителя y
+
+    # Метод для исправления нарушений свойств красно-черного дерева после вставки
+    def fix_insert(self, node):
+        # Продолжаем исправление, пока родитель узла красный
+        while node.parent is not None and self.is_red(node.parent):
+            # Если родитель - левый потомок деда
+            if node.parent.parent is not None and node.parent == node.parent.parent.left:
+                uncle = node.parent.parent.right  # Дядя - правый потомок деда
+                
+                # Случай 1: Дядя красный
+                if uncle is not None and uncle != self.NIL and self.is_red(uncle):
+                    # Перекрашиваем родителя и дядю в черный
+                    node.parent.color = 'BLACK'
+                    uncle.color = 'BLACK'
+                    # Перекрашиваем деда в красный
+                    node.parent.parent.color = 'RED'
+                    # Переходим к деду для дальнейшей проверки
+                    node = node.parent.parent
+                else:
+                    # Случай 2: Дядя черный, узел - правый потомок родителя (Left-Right)
+                    if node == node.parent.right:
+                        node = node.parent
+                        self.left_rotate(node)
+                        # После поворота node теперь левый потомок своего родителя
+                    
+                    # Случай 3: Дядя черный, узел - левый потомок родителя (Left-Left)
+                    # Теперь node гарантированно левый потомок (либо был изначально, либо стал после случая 2)
+                    if node.parent is not None:
+                        node.parent.color = 'BLACK'
+                        if node.parent.parent is not None:
+                            node.parent.parent.color = 'RED'
+                            self.right_rotate(node.parent.parent)
+                    # После поворота баланс восстановлен, выходим из цикла
+                    break
+            else:
+                # Если родитель - правый потомок деда (симметричный случай)
+                if node.parent.parent is not None:
+                    uncle = node.parent.parent.left  # Дядя - левый потомок деда
+                    
+                    # Случай 1: Дядя красный
+                    if uncle is not None and uncle != self.NIL and self.is_red(uncle):
+                        # Перекрашиваем родителя и дядю в черный
+                        node.parent.color = 'BLACK'
+                        uncle.color = 'BLACK'
+                        # Перекрашиваем деда в красный
+                        node.parent.parent.color = 'RED'
+                        # Переходим к деду для дальнейшей проверки
+                        node = node.parent.parent
+                    else:
+                        # Случай 2: Дядя черный, узел - левый потомок родителя (Right-Left)
+                        if node == node.parent.left:
+                            node = node.parent
+                            self.right_rotate(node)
+                            # После поворота node теперь правый потомок своего родителя
+                        
+                        # Случай 3: Дядя черный, узел - правый потомок родителя (Right-Right)
+                        # Теперь node гарантированно правый потомок (либо был изначально, либо стал после случая 2)
+                        if node.parent is not None:
+                            node.parent.color = 'BLACK'
+                            if node.parent.parent is not None:
+                                node.parent.parent.color = 'RED'
+                                self.left_rotate(node.parent.parent)
+                        # После поворота баланс восстановлен, выходим из цикла
+                        break
+                else:
+                    # Если деда нет (родитель - корень), просто выходим
+                    break
+        
+        # Корень всегда должен быть черным
+        if self.root is not None:
+            self.root.color = 'BLACK'
+
+    # Рекурсивный метод для вставки нового значения в красно-черное дерево
+    def insert(self, value, node=None, parent=None):
+        # Если node не передан, начинаем с корня (первый вызов метода)
+        if node is None:
+            # Если дерево пустое, создаем корневой узел
+            if self.root is None:
+                new_node = RBNode(value, 'BLACK')  # Корень всегда черный
+                new_node.left = self.NIL
+                new_node.right = self.NIL
+                self.root = new_node
+                return True
+            # Если дерево не пустое, вызываем рекурсивную вставку, начиная с корня
+            # После вставки корень может измениться из-за балансировки
+            old_root = self.root
+            result = self.insert(value, self.root, None)
+            # Если корень изменился (из-за поворота), обновляем его
+            if self.root != old_root:
+                # Корень уже обновлен в методах поворота
+                pass
+            return result
+        
+        # Если значение уже существует в дереве, не добавляем его повторно
+        if value == node.value:
+            return False
+        
+        # Если новое значение меньше значения текущего узла
+        if value < node.value:
+            if node.left == self.NIL:
+                # Создаем новый узел и присваиваем его левому потомку
+                new_node = RBNode(value, 'RED')
+                new_node.left = self.NIL
+                new_node.right = self.NIL
+                new_node.parent = node
+                node.left = new_node
+                # Исправляем нарушения свойств красно-черного дерева
+                self.fix_insert(new_node)
+                return True
+            else:
+                # Рекурсивно вызываем метод для левого поддерева
+                return self.insert(value, node.left, node)
+        else:
+            # Если новое значение больше значения текущего узла
+            if node.right == self.NIL:
+                # Создаем новый узел и присваиваем его правому потомку
+                new_node = RBNode(value, 'RED')
+                new_node.left = self.NIL
+                new_node.right = self.NIL
+                new_node.parent = node
+                node.right = new_node
+                # Исправляем нарушения свойств красно-черного дерева
+                self.fix_insert(new_node)
+                return True
+            else:
+                # Рекурсивно вызываем метод для правого поддерева
+                return self.insert(value, node.right, node)
+
+    # Метод для вставки списка значений в красно-черное дерево
+    def insert_list(self, values):
+        """
+        Вставляет список значений в дерево.
+        
+        Args:
+            values: Список или итерируемый объект со значениями для вставки
+        
+        Returns:
+            Список результатов вставки (True - успешно, False - значение уже существует)
+        """
+        results = []
+        for value in values:
+            result = self.insert(value)
+            results.append(result)
+        return results
+
+    # Вспомогательный метод для поиска узла с заданным значением
+    def find_node(self, value, node=None):
+        if node is None:
+            node = self.root
+        
+        while node != self.NIL and node is not None:
+            if value == node.value:
+                return node
+            elif value < node.value:
+                node = node.left
+            else:
+                node = node.right
+        
+        return None
+
+    # Рекурсивный метод для поиска значения в красно-черном дереве
+    def search(self, value, node=None):
+        # Если node не передан, начинаем с корня (первый вызов метода)
+        if node is None:
+            node = self.root
+        
+        # Если узел пустой (дерево пустое или достигли листа), значение не найдено
+        if node is None or node == self.NIL:
+            return False
+        
+        # Если значение совпадает с значением текущего узла, значение найдено
+        if value == node.value:
+            return True
+        
+        # Если искомое значение меньше значения текущего узла
+        if value < node.value:
+            # Ищем в левом поддереве (там находятся меньшие значения)
+            return self.search(value, node.left)
+        else:
+            # Если искомое значение больше значения текущего узла
+            # Ищем в правом поддереве (там находятся большие значения)
+            return self.search(value, node.right)
+
+    # Вспомогательный метод для поиска узла с минимальным значением
+    def find_min_node(self, node):
+        while node.left != self.NIL and node.left is not None:
+            node = node.left
+        return node
+
+    # Метод для исправления нарушений свойств красно-черного дерева после удаления
+    def fix_delete(self, x):
+        # Продолжаем исправление, пока x не является корнем и x черный
+        while x != self.root and x is not None and x.parent is not None and self.is_black(x):
+            # Если x - левый потомок родителя
+            if x.parent is not None and x == x.parent.left:
+                w = x.parent.right  # Брат x
+                
+                # Случай 1: Брат красный
+                if w is not None and w != self.NIL and self.is_red(w):
+                    w.color = 'BLACK'
+                    x.parent.color = 'RED'
+                    self.left_rotate(x.parent)
+                    w = x.parent.right
+                
+                # Случай 2: Брат черный, оба потомка брата черные
+                if w is not None and w != self.NIL and self.is_black(w.left) and self.is_black(w.right):
+                    w.color = 'RED'
+                    x = x.parent
+                elif w is not None and w != self.NIL:
+                    # Случай 3: Брат черный, левый потомок брата красный, правый черный
+                    if self.is_black(w.right):
+                        if w.left is not None and w.left != self.NIL:
+                            w.left.color = 'BLACK'
+                        w.color = 'RED'
+                        self.right_rotate(w)
+                        w = x.parent.right
+                    
+                    # Случай 4: Брат черный, правый потомок брата красный
+                    if w is not None and w != self.NIL:
+                        w.color = x.parent.color
+                        x.parent.color = 'BLACK'
+                        if w.right is not None and w.right != self.NIL:
+                            w.right.color = 'BLACK'
+                        self.left_rotate(x.parent)
+                        x = self.root
+            elif x.parent is not None:
+                # Симметричный случай: x - правый потомок родителя
+                w = x.parent.left  # Брат x
+                
+                # Случай 1: Брат красный
+                if w is not None and w != self.NIL and self.is_red(w):
+                    w.color = 'BLACK'
+                    x.parent.color = 'RED'
+                    self.right_rotate(x.parent)
+                    w = x.parent.left
+                
+                # Случай 2: Брат черный, оба потомка брата черные
+                if w is not None and w != self.NIL and self.is_black(w.right) and self.is_black(w.left):
+                    w.color = 'RED'
+                    x = x.parent
+                elif w is not None and w != self.NIL:
+                    # Случай 3: Брат черный, правый потомок брата красный, левый черный
+                    if self.is_black(w.left):
+                        if w.right is not None and w.right != self.NIL:
+                            w.right.color = 'BLACK'
+                        w.color = 'RED'
+                        self.left_rotate(w)
+                        w = x.parent.left
+                    
+                    # Случай 4: Брат черный, левый потомок брата красный
+                    if w is not None and w != self.NIL:
+                        w.color = x.parent.color
+                        x.parent.color = 'BLACK'
+                        if w.left is not None and w.left != self.NIL:
+                            w.left.color = 'BLACK'
+                        self.right_rotate(x.parent)
+                        x = self.root
+        
+        # x всегда должен быть черным
+        if x is not None:
+            x.color = 'BLACK'
+
+    # Метод для удаления значения из красно-черного дерева
+    def delete(self, value):
+        # Если дерево пустое, удалять нечего
+        if self.root is None:
+            return False
+        
+        # Ищем узел для удаления
+        z = self.find_node(value)
+        if z is None:
+            return False
+        
+        # Вызываем вспомогательный метод удаления
+        self._delete_node(z)
+        return True
+
+    # Вспомогательный метод для удаления узла
+    def _delete_node(self, z):
+        y = z
+        y_original_color = y.color
+        x = self.NIL
+        
+        # Если у узла нет левого потомка
+        if z.left == self.NIL:
+            x = z.right
+            self._transplant(z, z.right)
+        # Если у узла нет правого потомка
+        elif z.right == self.NIL:
+            x = z.left
+            self._transplant(z, z.left)
+        else:
+            # У узла есть оба потомка
+            y = self.find_min_node(z.right)
+            y_original_color = y.color
+            x = y.right
+            
+            if y.parent == z:
+                if x != self.NIL:
+                    x.parent = y
+            else:
+                self._transplant(y, y.right)
+                y.right = z.right
+                if y.right != self.NIL:
+                    y.right.parent = y
+            
+            self._transplant(z, y)
+            y.left = z.left
+            if y.left != self.NIL:
+                y.left.parent = y
+            y.color = z.color
+        
+        # Если удаленный узел был черным, исправляем нарушения
+        if y_original_color == 'BLACK':
+            self.fix_delete(x)
+
+    # Вспомогательный метод для замены одного поддерева другим
+    def _transplant(self, u, v):
+        if u.parent is None:
+            self.root = v
+        elif u == u.parent.left:
+            u.parent.left = v
+        else:
+            u.parent.right = v
+        
+        if v != self.NIL and v is not None:
+            v.parent = u.parent
+
+    # Рекурсивный метод для поиска минимального значения в дереве
+    def find_min(self, node=None):
+        # Если node не передан, начинаем с корня (первый вызов метода)
+        if node is None:
+            # Если дерево пустое, минимального значения нет
+            if self.root is None:
+                return None
+            # Вызываем рекурсивный поиск минимума, начиная с корня
+            return self.find_min(self.root)
+        
+        # Минимальное значение всегда находится в самом левом узле
+        # Если левого потомка нет (достигли листа), текущий узел и есть минимальный
+        if node.left == self.NIL or node.left is None:
+            return node.value
+        
+        # Если левый потомок есть, продолжаем поиск влево
+        return self.find_min(node.left)
+
+    # Рекурсивный метод для поиска максимального значения в дереве
+    def find_max(self, node=None):
+        # Если node не передан, начинаем с корня (первый вызов метода)
+        if node is None:
+            # Если дерево пустое, максимального значения нет
+            if self.root is None:
+                return None
+            # Вызываем рекурсивный поиск максимума, начиная с корня
+            return self.find_max(self.root)
+        
+        # Максимальное значение всегда находится в самом правом узле
+        # Если правого потомка нет (достигли листа), текущий узел и есть максимальный
+        if node.right == self.NIL or node.right is None:
+            return node.value
+        
+        # Если правый потомок есть, продолжаем поиск вправо
+        return self.find_max(node.right)
+
+    # Рекурсивный метод для прямого обхода (preorder): корень -> левое поддерево -> правое поддерево
+    def preorder_traversal(self, node=None, result=None):
+        # Если result не передан, создаем новый список (первый вызов метода)
+        if result is None:
+            result = []
+            # Если node не передан, начинаем с корня
+            if node is None:
+                node = self.root
+        
+        # Если узел пустой (дерево пустое или достигли листа), прекращаем обход этой ветви
+        if node is None or node == self.NIL:
+            return result
+        
+        result.append(node.value)  # Добавляем значение текущего узла в результат
+        self.preorder_traversal(node.left, result)   # Рекурсивно обходим левое поддерево
+        self.preorder_traversal(node.right, result)   # Рекурсивно обходим правое поддерево
+        return result
+
+    # Рекурсивный метод для центрированного обхода (inorder): левое поддерево -> корень -> правое поддерево
+    def inorder_traversal(self, node=None, result=None):
+        # Если result не передан, создаем новый список (первый вызов метода)
+        if result is None:
+            result = []
+            # Если node не передан, начинаем с корня
+            if node is None:
+                node = self.root
+        
+        # Если узел пустой (дерево пустое или достигли листа), прекращаем обход этой ветви
+        if node is None or node == self.NIL:
+            return result
+        
+        self.inorder_traversal(node.left, result)    # Рекурсивно обходим левое поддерево
+        result.append(node.value)  # Добавляем значение текущего узла в результат
+        self.inorder_traversal(node.right, result)   # Рекурсивно обходим правое поддерево
+        return result
+
+    # Рекурсивный метод для обратного обхода (postorder): левое поддерево -> правое поддерево -> корень
+    def postorder_traversal(self, node=None, result=None):
+        # Если result не передан, создаем новый список (первый вызов метода)
+        if result is None:
+            result = []
+            # Если node не передан, начинаем с корня
+            if node is None:
+                node = self.root
+        
+        # Если узел пустой (дерево пустое или достигли листа), прекращаем обход этой ветви
+        if node is None or node == self.NIL:
+            return result
+        
+        self.postorder_traversal(node.left, result)   # Рекурсивно обходим левое поддерево
+        self.postorder_traversal(node.right, result) # Рекурсивно обходим правое поддерево
+        result.append(node.value)  # Добавляем значение текущего узла в результат
+        return result
+
+    # Метод для обхода в ширину (level-order): обход по уровням слева направо
+    def level_order_traversal(self):
+        # Если дерево пустое, возвращаем пустой список
+        if self.root is None:
+            return []
+        
+        result = []
+        queue = deque([self.root])
+        
+        # Пока очередь не пуста, продолжаем обход
+        while queue:
+            node = queue.popleft()
+            if node != self.NIL and node is not None:
+                result.append(node.value)
+                
+                # Если у узла есть левый потомок, добавляем его в очередь
+                if node.left != self.NIL and node.left is not None:
+                    queue.append(node.left)
+                
+                # Если у узла есть правый потомок, добавляем его в очередь
+                if node.right != self.NIL and node.right is not None:
+                    queue.append(node.right)
+        
+        return result
+
+    # Метод для красивого вывода дерева (для визуализации)
+    def display(self):
+        # Если дерево пустое, выводим сообщение
+        if self.root is None:
+            print("Дерево пустое")
+            return
+        
+        # Вызываем вспомогательный метод для рекурсивного вывода
+        self._display(self.root, "", True)
+
+    # Вспомогательный рекурсивный метод для красивого вывода дерева
+    def _display(self, node, prefix, is_last):
+        # Если узел пустой или NIL, ничего не выводим
+        if node is None or node == self.NIL:
+            return
+        
+        # Выводим текущий узел с соответствующим префиксом и цветом
+        color_symbol = 'R' if node.color == 'RED' else 'B'
+        print(prefix + ("└── " if is_last else "├── ") + str(node.value) + f" ({color_symbol})")
+        
+        # Определяем префикс для дочерних узлов
+        new_prefix = prefix + ("    " if is_last else "│   ")
+        
+        # Определяем, какие потомки есть у узла
+        children = []
+        if node.right != self.NIL and node.right is not None:
+            children.append(node.right)
+        if node.left != self.NIL and node.left is not None:
+            children.append(node.left)
+        
+        # Рекурсивно выводим всех потомков
+        for i, child in enumerate(children):
+            is_last_child = (i == len(children) - 1)
+            self._display(child, new_prefix, is_last_child)
+
+
+# Главная функция для интерактивной работы с красно-черным деревом
+def main():
+    tree = RedBlackTree()  # Создаем пустое красно-черное дерево
+    
+    # Выводим приветственное сообщение и инструкции
+    print("=" * 60)
+    print("Интерактивная работа с красно-черным деревом (Red-Black Tree)")
+    print("=" * 60)
+    print("\nДоступные команды:")
+    print("  1 - Вставить значение")
+    print("  11 - Вставить список значений")
+    print("  2 - Найти значение")
+    print("  3 - Удалить значение")
+    print("  4 - Найти минимум")
+    print("  5 - Найти максимум")
+    print("  6 - Прямой обход (preorder)")
+    print("  7 - Центрированный обход (inorder)")
+    print("  8 - Обратный обход (postorder)")
+    print("  9 - Обход в ширину (level-order)")
+    print("  10 - Показать дерево (с цветами узлов)")
+    print("  0 - Выход")
+    print("=" * 60)
+    
+    # Основной цикл программы
+    while True:
+        try:
+            # Запрашиваем у пользователя команду
+            choice = input("\nВыберите команду (0-11): ").strip()
+            
+            # Обрабатываем команду "Выход"
+            if choice == "0":
+                print("До свидания!")
+                break
+            
+            # Обрабатываем команду "Вставить значение"
+            elif choice == "1":
+                value = int(input("Введите значение для вставки: "))
+                if tree.insert(value):
+                    print(f"Значение {value} успешно вставлено (дерево автоматически сбалансировано)")
+                else:
+                    print(f"Значение {value} уже существует в дереве")
+            
+            # Обрабатываем команду "Вставить список значений"
+            elif choice == "11":
+                values_str = input("Введите значения через пробел или запятую: ").strip()
+                # Пробуем разделить по запятой или пробелу
+                if ',' in values_str:
+                    values_list = [int(x.strip()) for x in values_str.split(',')]
+                else:
+                    values_list = [int(x.strip()) for x in values_str.split()]
+                results = tree.insert_list(values_list)
+                inserted = sum(1 for r in results if r)
+                skipped = len(results) - inserted
+                print(f"Вставлено значений: {inserted}, пропущено (уже существуют): {skipped}")
+                print(f"Дерево автоматически сбалансировано")
+            
+            # Обрабатываем команду "Найти значение"
+            elif choice == "2":
+                value = int(input("Введите значение для поиска: "))
+                if tree.search(value):
+                    print(f"Значение {value} найдено в дереве")
+                else:
+                    print(f"Значение {value} не найдено в дереве")
+            
+            # Обрабатываем команду "Удалить значение"
+            elif choice == "3":
+                value = int(input("Введите значение для удаления: "))
+                if tree.delete(value):
+                    print(f"Значение {value} успешно удалено (дерево автоматически сбалансировано)")
+                else:
+                    print(f"Значение {value} не найдено в дереве")
+            
+            # Обрабатываем команду "Найти минимум"
+            elif choice == "4":
+                min_value = tree.find_min()
+                if min_value is not None:
+                    print(f"Минимальное значение: {min_value}")
+                else:
+                    print("Дерево пустое, минимум не найден")
+            
+            # Обрабатываем команду "Найти максимум"
+            elif choice == "5":
+                max_value = tree.find_max()
+                if max_value is not None:
+                    print(f"Максимальное значение: {max_value}")
+                else:
+                    print("Дерево пустое, максимум не найден")
+            
+            # Обрабатываем команду "Прямой обход"
+            elif choice == "6":
+                result = tree.preorder_traversal()
+                print(f"Прямой обход (preorder): {result}")
+            
+            # Обрабатываем команду "Центрированный обход"
+            elif choice == "7":
+                result = tree.inorder_traversal()
+                print(f"Центрированный обход (inorder): {result}")
+            
+            # Обрабатываем команду "Обратный обход"
+            elif choice == "8":
+                result = tree.postorder_traversal()
+                print(f"Обратный обход (postorder): {result}")
+            
+            # Обрабатываем команду "Обход в ширину"
+            elif choice == "9":
+                result = tree.level_order_traversal()
+                print(f"Обход в ширину (level-order): {result}")
+            
+            # Обрабатываем команду "Показать дерево"
+            elif choice == "10":
+                tree.display()
+            
+            # Обрабатываем неверную команду
+            else:
+                print("Неверная команда! Пожалуйста, выберите число от 0 до 11.")
+        
+        # Обрабатываем ошибку ввода (например, не число)
+        except ValueError:
+            print("Ошибка! Пожалуйста, введите корректное число.")
+        # Обрабатываем другие неожиданные ошибки
+        except Exception as e:
+            print(f"Произошла ошибка: {e}")
+
+
+# Точка входа в программу
+if __name__ == "__main__":
+    main()
